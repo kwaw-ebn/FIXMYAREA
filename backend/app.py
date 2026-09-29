@@ -28,6 +28,7 @@ if os.getenv('RENDER') and DB.startswith('postgresql'):
     def connect_ipv4(dialect, connection_record, args, params):
         # Resolve on every connection so Neon can change its addresses. Keep
         # the hostname for TLS/SNI and authentication; hostaddr selects IPv4.
+        params = dict(params)
         host = params.get('host')
         if host:
             addresses = socket.getaddrinfo(host, params.get('port', 5432), socket.AF_INET, socket.SOCK_STREAM)
@@ -35,6 +36,7 @@ if os.getenv('RENDER') and DB.startswith('postgresql'):
             params['hostaddr'] = ','.join(ipv4)
             params['host'] = ','.join([host] * len(ipv4))
         params.setdefault('connect_timeout', 10)
+        return dialect.loaded_dbapi.connect(*args, **params)
 Session = sessionmaker(engine)
 class Base(DeclarativeBase): pass
 
