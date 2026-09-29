@@ -1,6 +1,7 @@
 import hashlib
 import io
 import os
+import socket
 import uuid
 from datetime import datetime, timedelta, timezone
 from math import asin, cos, radians, sin, sqrt
@@ -12,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from PIL import Image
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, LargeBinary, String, Text, create_engine, func, select
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, LargeBinary, String, Text, create_engine, event, func, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
 if os.getenv('RENDER') and not os.getenv('DATABASE_URL'):
@@ -22,6 +23,16 @@ SECRET = os.getenv('JWT_SECRET', 'local-development-only')
 if os.getenv('RENDER') and SECRET == 'local-development-only':
     raise RuntimeError('JWT_SECRET must be configured')
 engine = create_engine(DB, pool_pre_ping=True, connect_args={'check_same_thread': False} if DB.startswith('sqlite') else {})
+if os.getenv('RENDER') and DB.startswith('postgresql'):
+    @event.listens_for(engine, 'do_connect')
+    def connect_ipv4(dialect, connection_record, args, params):
+        # Resolve on every connection so Neon can change its addresses. Keep
+        # the hostname for TLS/SNI and authentication; hostaddr selects IPv4.
+        host = params.get('host')
+        if host:
+            addresses = socket.getaddrinfo(host, params.get('port', 5432), socket.AF_INET, socket.SOCK_STREAM)
+            params['hostaddr'] = ','.join(dict.fromkeys(item[4][0] for item in addresses))
+        params.setdefault('connect_timeout', 10)
 Session = sessionmaker(engine)
 class Base(DeclarativeBase): pass
 
@@ -253,4 +264,3 @@ def organization_reports(user=Depends(actor),session=Depends(db)):
     staff(user)
     query=select(Report).where(Report.organization_id==user.organization_id) if user.role!='platform_admin' else select(Report)
     return [public(r,session) for r in session.scalars(query.order_by(Report.created_at.desc()).limit(200))]
-
