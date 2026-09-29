@@ -33,7 +33,7 @@ Open `http://localhost:5173`. The local API uses SQLite by default. On Render, `
 
 ## Deploy
 
-`render.yaml` provisions the API, static frontend and PostgreSQL in one Blueprint. Open [the Render Blueprint setup](https://dashboard.render.com/blueprint/new?repo=https://github.com/kwaw-ebn/FIXMYAREA), connect the repository, review resource plans and apply. Render free PostgreSQL may expire; choose a durable paid database for a long-running pilot. Check `/health`, `/docs`, the frontend, and the report workflow after deployment. Ensure your custom frontend domain is added to `FRONTEND_ORIGINS` if you add one.
+`render.yaml` provisions a free API and static frontend. The database is an external PostgreSQL service, such as a separate Neon Free project. Create the database, obtain its pooled connection string with TLS enabled, and enter it as the API's `DATABASE_URL` secret in Render. Do not put the connection string in GitHub or chat. The API refuses to start on Render if the secret is absent, preventing use of ephemeral SQLite storage. Open [the Render Blueprint setup](https://dashboard.render.com/blueprint/new?repo=https://github.com/kwaw-ebn/FIXMYAREA), review and apply. Check `/health`, `/docs`, the frontend, and the report workflow after deployment. Ensure your custom frontend domain is added to `FRONTEND_ORIGINS` if you add one. Neon Free has resource limits; monitor storage because pilot photos are currently compressed into the database.
 
 ## Organization onboarding
 
@@ -50,3 +50,4 @@ Submitted → Under Review → Verified → Assigned → In Progress → Resolve
 ## Roadmap
 
 Next: field verification and rejection/reopening, proper invitations and email verification, moderation, durable object storage, rate limiting, maps provider, location jurisdiction routing, full audit export and tests. Later: AI classification, offline capture, messaging integrations, GIS hotspots, SLA automation and partner workspace. Never claim a municipality has joined until onboarded.
+
