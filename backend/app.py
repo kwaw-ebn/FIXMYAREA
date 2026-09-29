@@ -31,7 +31,9 @@ if os.getenv('RENDER') and DB.startswith('postgresql'):
         host = params.get('host')
         if host:
             addresses = socket.getaddrinfo(host, params.get('port', 5432), socket.AF_INET, socket.SOCK_STREAM)
-            params['hostaddr'] = ','.join(dict.fromkeys(item[4][0] for item in addresses))
+            ipv4 = list(dict.fromkeys(item[4][0] for item in addresses))
+            params['hostaddr'] = ','.join(ipv4)
+            params['host'] = ','.join([host] * len(ipv4))
         params.setdefault('connect_timeout', 10)
 Session = sessionmaker(engine)
 class Base(DeclarativeBase): pass
