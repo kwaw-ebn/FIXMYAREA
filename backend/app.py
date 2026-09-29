@@ -15,6 +15,8 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, LargeBinary, String, Text, create_engine, func, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
+if os.getenv('RENDER') and not os.getenv('DATABASE_URL'):
+    raise RuntimeError('DATABASE_URL must point to a persistent PostgreSQL database')
 DB = os.getenv('DATABASE_URL', 'sqlite:///./fixmyarea.db').replace('postgres://', 'postgresql+psycopg://').replace('postgresql://', 'postgresql+psycopg://')
 SECRET = os.getenv('JWT_SECRET', 'local-development-only')
 if os.getenv('RENDER') and SECRET == 'local-development-only':
@@ -251,3 +253,4 @@ def organization_reports(user=Depends(actor),session=Depends(db)):
     staff(user)
     query=select(Report).where(Report.organization_id==user.organization_id) if user.role!='platform_admin' else select(Report)
     return [public(r,session) for r in session.scalars(query.order_by(Report.created_at.desc()).limit(200))]
+
