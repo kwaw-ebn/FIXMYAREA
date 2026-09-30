@@ -41,13 +41,31 @@ Public signup grants the `citizen` role only. No administrator account is seeded
 
 ## Security and pilot limits
 
-JWTs expire after eight hours. Passwords use Argon2. Organization report reads and mutations are scoped server-side. Images are decoded, resized and capped at 6 MB. Public issue locations and evidence are visible; contributors should avoid faces, homes, license plates and personal details. A privacy/moderation review and anti-spam controls are needed before a broad public launch. Registration does not yet verify email. There is no SMS, WhatsApp, offline field sync or AI model in this MVP. The public map uses OpenStreetMap tile service; arrange suitable tile hosting for significant traffic.
+JWTs expire after eight hours. Passwords use Argon2. Organization report reads and mutations are scoped server-side. Images are decoded, resized and capped at 6 MB. Public issue locations and evidence are visible; contributors should avoid faces, homes, license plates and personal details. A privacy/moderation review and anti-spam controls are needed before a broad public launch. Registration does not yet verify email. SMS, WhatsApp, offline photo/status synchronization and AI models are not connected. Inspection notes support device-local queuing and idempotent synchronization. The public map uses OpenStreetMap tile service; arrange suitable tile hosting for significant traffic.
 
 ## Workflow
 
-Submitted → Under Review → Verified → Assigned → In Progress → Resolved → Closed. Assignment is restricted to the assigned organization or platform administrator. Resolution requires an after image. Each transition creates an event and a notice. Duplicate suggestions use same category, 250 m proximity and a 90-day window; they are advisory.
+Submitted → Under Review → Verified → Assigned → In Progress → Resolved → citizen confirmation → Closed; rejected repair confirmation → Reopened → In Progress. Assignment is restricted to the assigned organization or platform administrator. Resolution requires an after image. Each transition creates an event and a notice. Duplicate suggestions use same category, 250 m proximity and a 90-day window; they are advisory.
 
 ## Roadmap
 
 Next: field verification and rejection/reopening, proper invitations and email verification, moderation, durable object storage, rate limiting, maps provider, location jurisdiction routing, full audit export and tests. Later: AI classification, offline capture, messaging integrations, GIS hotspots, SLA automation and partner workspace. Never claim a municipality has joined until onboarded.
 
+
+## Advanced pilot workflows
+
+- Reporter-only repair confirmation and reopening with a reason. Supervisors can close with a documented reason.
+- Verified organizations configure category + exact community routing rules. Suggestions require human assignment; uncertain cases stay in platform review. Existing organizations start unverified.
+- Scoped organization analytics show resolution rate, average days and overdue counts. Targets start at submission, using configured days or a 14 day pilot default.
+- Coarse category/location clusters require at least three unresolved reports. They are reporting patterns, not forecasts.
+- Field inspection notes queue on a trusted device after initial account access, synchronize on reconnection, and use UUIDs to prevent repeated submissions. Photos and status changes require internet. Notes are internal; sign out does not erase unsynchronized notes.
+- Build With Us accepts private contributor, pilot, NGO/CSR and investment enquiries. Platform administrators review them in Workspace. No email, payments or external invitations are sent.
+- Additive tables: organization_profiles, routing_rules, resolution_confirmations, field_visits, partner_interests. Existing report rows are preserved.
+
+### Validation
+
+Install `httpx` alongside backend requirements and run `cd backend && python test_flow.py`. This verifies registration, reporting, organization isolation, verified routing, evidence requirements, repair reopening/confirmation, field synchronization and private enquiry access. Run `cd frontend && npm run build` for type checking and production bundling.
+
+### Integrations still required
+
+SMS/WhatsApp require approved provider accounts, recipient consent and delivery configuration. Offline photos require IndexedDB blob queues and storage/quota handling. AI classification requires a validated model and evaluation data. Pilot results and partner participation must be recorded before any claims of impact or affiliation.
