@@ -102,7 +102,7 @@ app = FastAPI(title='FixMyArea API')
 app.add_middleware(CORSMiddleware, allow_origins=[x.strip() for x in os.getenv('FRONTEND_ORIGINS', 'http://localhost:5173').split(',')], allow_origin_regex=r'https://fixmyarea-web(?:-[a-z0-9-]+)?\.onrender\.com', allow_credentials=False, allow_methods=['GET','POST'], allow_headers=['Authorization','Content-Type'])
 hasher = PasswordHasher()
 CATEGORIES = ['Road/Pothole','Drainage','Waste/Sanitation','Streetlight','Water','Flooding','Public Facility','Road Safety','Environmental Hazard','Other']
-STATES = ['Submitted','Under Review','Verified','Assigned','In Progress','Resolved','Closed']
+STATES = ['Submitted','Under Review','Verified','Assigned','In Progress','Resolved','Reopened','Closed']
 
 def db():
     with Session() as session: yield session
@@ -152,7 +152,7 @@ def login(body: Credentials, session=Depends(db)):
     return {'access_token':token,'role':user.role,'organization_id':user.organization_id}
 
 @app.get('/api/me')
-def me(user=Depends(actor)): return {'email':user.email,'role':user.role,'organization_id':user.organization_id}
+def me(user=Depends(actor)): return {'id':user.id,'email':user.email,'role':user.role,'organization_id':user.organization_id}
 
 @app.get('/api/organizations')
 def organizations(session=Depends(db)):
@@ -226,6 +226,8 @@ def assign(report_id: str,body: Assignment,user=Depends(actor),session=Depends(d
     if user.role!='platform_admin' and body.organization_id!=user.organization_id: raise HTTPException(403,'Outside your organization')
     if r.organization_id and user.role!='platform_admin' and r.organization_id!=user.organization_id: raise HTTPException(403,'Outside your organization')
     if not session.get(Organization,body.organization_id): raise HTTPException(404,'Organization not found')
+    if not r.organization_id and user.role!='platform_admin' and not routing_allowed(r,body.organization_id,session): raise HTTPException(403,'Unassigned case must match your verified service area')
+    if r.status in ('Resolved','Closed'): raise HTTPException(409,'Completed reports cannot be reassigned')
     if body.assignee_id:
         assignee=session.get(User,body.assignee_id)
         if not assignee or assignee.organization_id!=body.organization_id or assignee.role=='citizen': raise HTTPException(422,'Invalid assignee')
@@ -241,8 +243,9 @@ def update_status(report_id: str,body: StatusUpdate,user=Depends(actor),session=
     r=session.get(Report,report_id)
     if not r: raise HTTPException(404,'Report not found')
     accessible(r,user)
-    allowed={'Assigned':['In Progress'],'In Progress':['Resolved'],'Resolved':['Closed','In Progress'],'Submitted':['Under Review'],'Under Review':['Verified'],'Verified':['Assigned']}
+    allowed={'Reopened':['In Progress'],'Assigned':['In Progress'],'In Progress':['Resolved'],'Resolved':['Closed','In Progress'],'Submitted':['Under Review'],'Under Review':['Verified'],'Verified':['Assigned']}
     if body.status not in allowed.get(r.status,[]): raise HTTPException(409,'Invalid status transition')
+    if body.status=='Closed' and (user.role not in ('supervisor','org_admin','platform_admin') or len(body.note.strip())<10): raise HTTPException(409,'Citizen confirmation is preferred. Supervisor closure requires a reason of at least 10 characters')
     if body.status=='Resolved' and not session.scalar(select(Photo).where(Photo.report_id==r.id,Photo.kind=='after')): raise HTTPException(409,'Upload after evidence first')
     r.status=body.status; session.add(Event(report_id=r.id,actor_id=user.id,action=body.status,note=body.note)); session.add(Notice(user_id=r.reporter_id,message=f'{r.tracking}: {body.status}')); session.commit(); return public(r,session)
 
@@ -268,3 +271,6 @@ def organization_reports(user=Depends(actor),session=Depends(db)):
     staff(user)
     query=select(Report).where(Report.organization_id==user.organization_id) if user.role!='platform_admin' else select(Report)
     return [public(r,session) for r in session.scalars(query.order_by(Report.created_at.desc()).limit(200))]
+
+from advanced import install
+install(app, globals())
