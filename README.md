@@ -59,7 +59,7 @@ Next: field verification and rejection/reopening, proper invitations and email v
 - Scoped organization analytics show resolution rate, average days and overdue counts. Targets start at submission, using configured days or a 14 day pilot default.
 - Coarse category/location clusters require at least three unresolved reports. They are reporting patterns, not forecasts.
 - Field inspection notes queue on a trusted device after initial account access, synchronize on reconnection, and use UUIDs to prevent repeated submissions. Photos and status changes require internet. Notes are internal; sign out does not erase unsynchronized notes.
-- Build With Us accepts private contributor, pilot, NGO/CSR and investment enquiries. Platform administrators review them in Workspace. No email, payments or external invitations are sent.
+- The public Build With Us page has been removed. Previously recorded partner enquiries remain available to platform administrators.
 - Additive tables: organization_profiles, routing_rules, resolution_confirmations, field_visits, partner_interests. Existing report rows are preserved.
 
 ### Validation
