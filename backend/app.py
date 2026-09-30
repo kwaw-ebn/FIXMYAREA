@@ -15,6 +15,7 @@ from PIL import Image
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, LargeBinary, String, Text, create_engine, event, func, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
+from sqlalchemy.exc import IntegrityError
 
 if os.getenv('RENDER') and not os.getenv('DATABASE_URL'):
     raise RuntimeError('DATABASE_URL must point to a persistent PostgreSQL database')
@@ -97,6 +98,13 @@ class Notice(Base):
     message: Mapped[str] = mapped_column(String(250))
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
+class SyncReceipt(Base):
+    __tablename__ = 'sync_receipts'
+    user_id: Mapped[str] = mapped_column(ForeignKey('users.id'), primary_key=True)
+    key: Mapped[str] = mapped_column(String(36), primary_key=True)
+    digest: Mapped[str] = mapped_column(String(64))
+    report_id: Mapped[str] = mapped_column(ForeignKey('reports.id'))
+
 Base.metadata.create_all(engine)
 app = FastAPI(title='FixMyArea API')
 app.add_middleware(CORSMiddleware, allow_origins=[x.strip() for x in os.getenv('FRONTEND_ORIGINS', 'http://localhost:5173').split(',')], allow_origin_regex=r'https://fixmyarea-web(?:-[a-z0-9-]+)?\.onrender\.com', allow_credentials=False, allow_methods=['GET','POST'], allow_headers=['Authorization','Content-Type'])
@@ -139,7 +147,10 @@ def health(): return {'status':'ok'}
 def register(body: Credentials, session=Depends(db)):
     if session.scalar(select(User).where(User.email == body.email.lower())): raise HTTPException(409, 'Email registered')
     user = User(email=body.email.lower(), password=hasher.hash(body.password))
-    session.add(user); session.commit()
+    session.add(user)
+    try: session.commit()
+    except IntegrityError:
+        session.rollback(); raise HTTPException(409, 'Email registered')
     return {'message':'Account created. Sign in to continue.'}
 
 @app.post('/api/auth/login')
@@ -178,11 +189,22 @@ def read_image(raw):
     except Exception: raise HTTPException(422, 'Invalid image')
 
 @app.post('/api/reports')
-async def create_report(category: str=Form(...), description: str=Form(...), community: str=Form(...), latitude: float=Form(...), longitude: float=Form(...), photo: UploadFile=File(...), user=Depends(actor), session=Depends(db)):
+async def create_report(category: str=Form(...), description: str=Form(...), community: str=Form(...), latitude: float=Form(...), longitude: float=Form(...), photo: UploadFile=File(...), client_id: uuid.UUID | None=Form(None), user=Depends(actor), session=Depends(db)):
     if category not in CATEGORIES or not 5<=len(description.strip())<=1000 or not 2<=len(community.strip())<=120 or not -90<=latitude<=90 or not -180<=longitude<=180: raise HTTPException(422, 'Invalid report fields')
     raw=await photo.read(6_000_001); image=read_image(raw)
+    # A stable client UUID survives lost responses. Serialize submissions per
+    # account so simultaneous reconnects cannot create two reports.
+    import json
+    digest=hashlib.sha256(json.dumps([category,description.strip(),community.strip(),latitude,longitude],ensure_ascii=False).encode()+raw).hexdigest()
+    if client_id:
+        session.scalar(select(User).where(User.id==user.id).with_for_update())
+        receipt=session.get(SyncReceipt,{'user_id':user.id,'key':str(client_id)})
+        if receipt:
+            if receipt.digest!=digest: raise HTTPException(409,'Saved report ID has different content')
+            return public(session.get(Report,receipt.report_id),session)
     report=Report(tracking='FMA-'+str(datetime.now(timezone.utc).year)+'-'+uuid.uuid4().hex[:8].upper(),reporter_id=user.id,category=category,description=description.strip(),community=community.strip(),latitude=latitude,longitude=longitude)
     session.add(report); session.flush(); session.add(Photo(report_id=report.id,kind='before',data=image)); session.add(Event(report_id=report.id,actor_id=user.id,action='Submitted')); session.add(Notice(user_id=user.id,message=f'{report.tracking} submitted'))
+    if client_id: session.add(SyncReceipt(user_id=user.id,key=str(client_id),digest=digest,report_id=report.id))
     session.commit(); return public(report,session)
 
 @app.get('/api/reports')
@@ -274,3 +296,5 @@ def organization_reports(user=Depends(actor),session=Depends(db)):
 
 from advanced import install
 install(app, globals())
+from offline import install as install_offline
+install_offline(app, globals())

@@ -70,4 +70,43 @@ with tempfile.TemporaryDirectory() as folder:
         for i in range(3): session.add(Report(tracking='TEST-'+str(i),reporter_id=reporter.id,organization_id=org_id,category='Drainage',community='Old Market',description='Test fixture only',latitude=5.6,longitude=-0.2,created_at=datetime.now(timezone.utc)-timedelta(days=30)))
     assert client.get('/api/analytics/hotspots').json()[0]['count']==3
     assert client.get('/api/organization/analytics',headers=officer).json()['overdue']==3
+    # Offline retries must preserve tracking and never append another photo/event.
+    saved_id=str(uuid.uuid4())
+    fields={'client_id':saved_id,'category':'Water','description':'Water pipe leaking at junction','community':'New Market','latitude':'5.7','longitude':'-0.3'}
+    def submit_saved(data=fields, photo=out.getvalue()):
+        return client.post('/api/reports',headers=citizen,data=data,files={'photo':('saved.png',photo,'image/png')})
+    first=submit_saved(); retry=submit_saved()
+    assert first.status_code==retry.status_code==200
+    assert first.json()['id']==retry.json()['id']
+    assert len(retry.json()['images'])==1
+    assert len(client.get('/api/reports/'+first.json()['id']).json()['timeline'])==1
+    assert submit_saved({**fields,'description':'Different content for same ID'}).status_code==409
+    assert submit_saved({**fields,'client_id':'invalid'}).status_code==422
+    assert submit_saved({**fields,'client_id':str(uuid.uuid4())},b'not an image').status_code==422
+    evidence_id=str(uuid.uuid4())
+    def field_evidence(headers=officer,note='Private drain inspection evidence',photo=out.getvalue()):
+        return client.post('/api/field/evidence',headers=headers,data={'client_id':evidence_id,'report_id':rid,'note':note},files={'photo':('inspection.png',photo,'image/png')})
+    assert field_evidence(citizen).status_code==403
+    assert field_evidence(outsider).status_code==403
+    assert field_evidence(photo=b'bad file').status_code==422
+    assert field_evidence().json()['duplicate']==False
+    assert field_evidence().json()['duplicate']==True
+    assert field_evidence(note='Altered findings').status_code==409
+    private=client.get(f'/api/reports/{rid}/field-evidence',headers=officer).json()
+    assert len(private)==1 and private[0]['has_photo']
+    photo_path=f'/api/field/evidence/{evidence_id}/photo'
+    assert client.get(photo_path).status_code==401
+    assert client.get(photo_path,headers=citizen).status_code==403
+    assert client.get(photo_path,headers=outsider).status_code==403
+    assert client.get(photo_path,headers=officer).headers['cache-control']=='no-store'
+    assert 'Private drain inspection evidence' not in client.get('/api/reports/'+rid).text
+    assert client.get('/api/organization/overdue',headers=outsider).json()==[]
+    assert client.post('/api/organization/check-alerts',headers=citizen).status_code==403
+    assert client.post('/api/organization/check-alerts',headers=officer).json()['created']==3
+    assert client.post('/api/organization/check-alerts',headers=officer).json()['created']==0
+    assert client.post('/api/organization/check-alerts',headers=outsider).json()['created']==0
+    assert sum('overdue response target' in n['message'] for n in client.get('/api/notifications',headers=officer).json())==3
+    assert client.get('/api/notification-preferences',headers=citizen).json()['whatsapp_available']==False
+    assert client.post('/api/notification-preferences',headers=citizen,json={'channel':'whatsapp','phone':'+233200000000'}).status_code==409
+    assert client.post('/api/auth/register',json={'email':'CITIZEN@example.org','password':'correct-horse-battery'}).status_code==409
     print('Citizen to resolution workflow passed')

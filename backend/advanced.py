@@ -75,6 +75,8 @@ def install(app, core):
         deadline=created+timedelta(days=days)
         return deadline.isoformat(), r.status not in ('Resolved','Closed') and now()>deadline
 
+    core['report_due'] = due
+
     class VerifyBody(BaseModel):
         verified: bool
 

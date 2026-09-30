@@ -1,4 +1,4 @@
-const CACHE='fixmyarea-shell-v2';
+const CACHE='fixmyarea-shell-v3';
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(async cache=>{const response=await fetch('/');const html=await response.clone().text();await cache.put('/',response);const assets=[...html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map(m=>m[1]);await cache.addAll(['/manifest.webmanifest',...assets])}));self.skipWaiting()});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))));self.clients.claim()});
 self.addEventListener('fetch',event=>{

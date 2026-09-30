@@ -41,7 +41,7 @@ Public signup grants the `citizen` role only. No administrator account is seeded
 
 ## Security and pilot limits
 
-JWTs expire after eight hours. Passwords use Argon2. Organization report reads and mutations are scoped server-side. Images are decoded, resized and capped at 6 MB. Public issue locations and evidence are visible; contributors should avoid faces, homes, license plates and personal details. A privacy/moderation review and anti-spam controls are needed before a broad public launch. Registration does not yet verify email. SMS, WhatsApp, offline photo/status synchronization and AI models are not connected. Inspection notes support device-local queuing and idempotent synchronization. The public map uses OpenStreetMap tile service; arrange suitable tile hosting for significant traffic.
+JWTs expire after eight hours. Passwords use Argon2. Organization report reads and mutations are scoped server-side. Images are decoded, resized and capped at 6 MB. Public issue locations and evidence are visible; contributors should avoid faces, homes, license plates and personal details. A privacy/moderation review and anti-spam controls are needed before a broad public launch. Registration does not yet verify email. SMS, WhatsApp and AI models are not connected. Status changes require an online review. Inspection notes support device-local queuing and idempotent synchronization. The public map uses OpenStreetMap tile service; arrange suitable tile hosting for significant traffic.
 
 ## Workflow
 
@@ -58,7 +58,7 @@ Next: field verification and rejection/reopening, proper invitations and email v
 - Verified organizations configure category + exact community routing rules. Suggestions require human assignment; uncertain cases stay in platform review. Existing organizations start unverified.
 - Scoped organization analytics show resolution rate, average days and overdue counts. Targets start at submission, using configured days or a 14 day pilot default.
 - Coarse category/location clusters require at least three unresolved reports. They are reporting patterns, not forecasts.
-- Field inspection notes queue on a trusted device after initial account access, synchronize on reconnection, and use UUIDs to prevent repeated submissions. Photos and status changes require internet. Notes are internal; sign out does not erase unsynchronized notes.
+- Field inspection notes queue on a trusted device after initial account access, synchronize on reconnection, and use UUIDs to prevent repeated submissions. Reports and inspection photos also support IndexedDB device queues, while status changes require internet. Notes and field evidence are internal; sign out does not erase unsynchronized items.
 - The public Build With Us page has been removed. Previously recorded partner enquiries remain available to platform administrators.
 - Additive tables: organization_profiles, routing_rules, resolution_confirmations, field_visits, partner_interests. Existing report rows are preserved.
 
@@ -68,4 +68,20 @@ Install `httpx` alongside backend requirements and run `cd backend && python tes
 
 ### Integrations still required
 
-SMS/WhatsApp require approved provider accounts, recipient consent and delivery configuration. Offline photos require IndexedDB blob queues and storage/quota handling. AI classification requires a validated model and evaluation data. Pilot results and partner participation must be recorded before any claims of impact or affiliation.
+SMS/WhatsApp require approved provider accounts, recipient consent and delivery configuration. AI classification requires a validated model and evaluation data. Pilot results and partner participation must be recorded before any claims of impact or affiliation.
+
+## Advanced update: connectivity and response targets
+
+- Citizen reports and compressed photos are saved in IndexedDB before submission, with up to 20 pending items per account. The queue is visible when signed in and retries while the app is open after reconnection. Server-side receipt UUIDs preserve one report/tracking number if a response is lost. Changed content under an existing UUID is rejected.
+- Offline reporting requires signing in and loading the app online once. GPS or manual coordinates remain usable without map tiles. An explicit issue-location confirmation is required. A pending item is not a submitted report and has no tracking number until synchronization succeeds.
+- Staff can download public task details and capture internal inspection notes/photos offline. Synchronized field photos require organization authorization and are served with no-store caching. Downloaded details omit internal notes and photos. Public after evidence and status changes require online review. Legacy note queues remain compatible.
+- Reconnect synchronization verifies the signed-in account. An expired token, validation problem, storage failure or changed assignment leaves the item pending with an actionable error. Use a trusted device; clear browser data only after synchronizing or deliberately discarding saved items. Background sync with the app closed is not implemented.
+- The impact page displays category-filtered hotspot circles based on real aggregate counts. A list remains available alongside the map. No synthetic hotspot data is seeded.
+- Workspace lists overdue reports with their due dates and issues a repeat-safe in-app alert on workspace access or refresh. Alerts are scoped to the current organization. This is an access-triggered check, not an unattended scheduler.
+- Notification availability is visible in My reports. SMS/WhatsApp are explicitly unavailable and telephone numbers are not collected for these channels yet. WhatsApp account onboarding, approved message templates, recipient consent, secure credentials and delivery processing remain required. No external messages are sent by this release.
+
+Additive tables: sync_receipts, field_evidence, overdue_alerts, notification_preferences. Existing reports and partner enquiry records are preserved; the public Build With Us page stays removed.
+
+API additions: multipart POST /api/field/evidence; GET /api/reports/{id}/field-evidence; authorized GET /api/field/evidence/{id}/photo; GET /api/organization/overdue; POST /api/organization/check-alerts; GET/POST /api/notification-preferences. POST /api/reports accepts an optional client_id UUID.
+
+Validation extends the isolated API workflow with retry preservation, changed-payload rejection, private photo authorization, invalid uploads and repeat-safe organization alerts. Frontend type checking and production bundling cover the new map and device queue components. Device storage behavior should also be exercised on pilot phones before a broad rollout.
