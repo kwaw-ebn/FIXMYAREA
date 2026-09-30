@@ -8,6 +8,6 @@ We welcome engineering, GIS, accessibility, security, design and civic operation
 4. Run the backend workflow tests and frontend build. Include organization isolation and privacy checks for new endpoints.
 5. Submit a pull request with the user outcome, tests and deployment requirements.
 
-Pilot organizations, NGOs, CSR partners and prospective investment partners can use the app's Build With Us form. Enquiries are private and reviewed by a platform administrator; submitting a form does not create a partnership or funding agreement.
+The public app focuses on civic reporting and resolution. Use GitHub issues for technical contribution proposals; avoid posting private contact information.
 
 Priority areas: secure staff invitations, email verification, notification delivery, offline photo capture, model evaluation, geospatial service boundaries and pilot outcome measurement.
