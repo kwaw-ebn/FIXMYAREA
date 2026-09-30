@@ -119,6 +119,13 @@ def install(app, core):
         matches=suggestions(r,session)
         return {'suggestions':matches,'requires_review':len(matches)!=1}
 
+    @app.get('/api/organization/staff')
+    def organization_staff(user=Depends(actor),session=Depends(db)):
+        staff(user)
+        query=select(User).where(User.role.in_(['officer','supervisor','org_admin']))
+        if user.role!='platform_admin': query=query.where(User.organization_id==user.organization_id)
+        return [{'id':u.id,'email':u.email,'organization_id':u.organization_id,'role':u.role} for u in session.scalars(query)]
+
     @app.get('/api/organization/review-queue')
     def review_queue(user=Depends(actor),session=Depends(db)):
         staff(user)
